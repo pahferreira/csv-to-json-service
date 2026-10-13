@@ -1,0 +1,64 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - depguard
+    - errcheck
+    - errchkjson
+    - errorlint
+    - misspell
+    - nilerr
+    - noctx
+    - unconvert
+    - unparam
+    - wastedassign
+
+  settings:
+    misspell:
+      locale: US
+    errorlint:
+      # Flags err == target instead of errors.Is, and %v instead of %w.
+      comparison: true
+      asserts: true
+      errorf: true
+
+    depguard:
+      rules:
+        # ADR-0006: dependencies point inward. The domain imports nothing
+        # from adapters and knows nothing about transport.
+        domain:
+          files:
+            - "**/internal/csvjson/**"
+          deny:
+            - pkg: net/http
+              desc: "ADR-0006: the domain must not know about HTTP"
+            - pkg: mime/multipart
+              desc: "ADR-0006: multipart decoding belongs in adapter/httpapi"
+            - pkg: github.com/go-chi/chi
+              desc: "ADR-0006: the domain must not depend on the router"
+            - pkg: github.com/pahferreira/csv-to-json-service/internal/adapter
+              desc: "ADR-0006: dependencies point inward, never outward to adapters"
+            - pkg: github.com/pahferreira/csv-to-json-service/internal/platform
+              desc: "ADR-0006: the domain takes config and loggers as parameters"
+
+  exclusions:
+    generated: lax
+    rules:
+      - path: _test\.go
+        linters:
+          - gosec
+          - unparam
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/pahferreira/csv-to-json-service
