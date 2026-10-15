@@ -90,6 +90,13 @@ func TestOperationalEndpointsAreNotLogged(t *testing.T) {
 
 	do(t, router, http.MethodPost, "/convert")
 	assert.NotEmpty(t, buf.String(), "routes inside the logged group must produce a line")
+
+	// 404 and 405 are inside the group too: probe traffic must be visible.
+	for _, path := range []string{"/nope", "/healthz"} {
+		buf.Reset()
+		do(t, router, http.MethodDelete, path)
+		assert.NotEmpty(t, buf.String(), "miss handlers must be logged: "+path)
+	}
 }
 
 func TestRequestIDIsSet(t *testing.T) {
