@@ -1,0 +1,11 @@
+# Keep the build context to source and module files.
+.git
+.github
+bin/
+main
+docs/
+*.md
+.golangci.yml
+Makefile
+Dockerfile
+.dockerignore
