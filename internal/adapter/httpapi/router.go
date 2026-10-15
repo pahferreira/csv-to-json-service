@@ -23,15 +23,17 @@ func NewRouter(logger *slog.Logger, ready func() bool) http.Handler {
 	r.Get("/healthz", healthz)
 	r.Get("/readyz", readyz(ready))
 
-	// Everything serving Clients goes here and is logged.
+	// Everything serving Clients goes here and is logged. The miss handlers are
+	// registered inside the group so probe traffic on a public endpoint is
+	// visible, while /healthz above stays silent.
 	r.Group(func(r chi.Router) {
 		r.Use(requestLogger(logger))
 
 		r.Post("/convert", notImplemented) // Real handler arrives with #13.
-	})
 
-	r.NotFound(notFound)
-	r.MethodNotAllowed(methodNotAllowed)
+		r.NotFound(notFound)
+		r.MethodNotAllowed(methodNotAllowed)
+	})
 
 	return r
 }
