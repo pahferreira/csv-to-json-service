@@ -7,6 +7,13 @@ PKG       := ./cmd/server
 VERSION   := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS   := -X main.version=$(VERSION)
 
+# Local developer convenience. The service itself only ever reads environment
+# variables (ADR-0011); .env just populates them for `make run`. The leading
+# dash makes a missing file a no-op, and only the four variables config reads
+# are exported, so a stray line in .env cannot clobber PATH for a recipe.
+-include .env
+export PORT MAX_BYTES MAX_ROWS LOG_LEVEL
+
 # Overridable from the environment or the command line
 IMAGE     ?= csv-to-json-service
 FUZZ      ?= Fuzz

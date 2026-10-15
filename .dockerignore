@@ -9,3 +9,5 @@ docs/
 Makefile
 Dockerfile
 .dockerignore
+.env
+.env.example
