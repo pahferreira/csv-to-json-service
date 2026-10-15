@@ -1,0 +1,80 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # go-version-file keeps one source of truth: go.mod. A hardcoded version
+      # here would drift the day go.mod is bumped.
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # Pinned so CI and a developer laptop run the same analyser. The version
+      # must match what the Makefile expects to find on PATH.
+      - name: Install golangci-lint
+        env:
+          GOLANGCI_LINT_VERSION: v2.13.2
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh \
+            | sh -s -- -b "$(go env GOPATH)/bin" "$GOLANGCI_LINT_VERSION"
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      # The Makefile is the single definition of what "lint" and "test" mean, so
+      # CI invokes it rather than repeating the commands and drifting from local.
+      - run: make lint test
+
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # git describe needs tags for the version stamp.
+
+      - name: Build image
+        run: make docker
+
+      # The -X stamp fails silently on a wrong import path, so assert the
+      # version actually reached the binary rather than trusting the build.
+      - name: Verify the version stamp and the startup contract
+        run: |
+          set -eo pipefail
+          # make docker also tags :latest, which avoids recomputing the
+          # version here and disagreeing with the Makefile.
+          IMAGE=csv-to-json-service:latest
+
+          # A missing required variable must exit non-zero naming the variable.
+          # Captured first: piping a failing `docker run` into grep would fail
+          # the step under pipefail no matter what grep found.
+          if boot=$(docker run --rm "$IMAGE" 2>&1); then
+            echo "::error::booting without PORT should have failed"
+            exit 1
+          fi
+          if ! grep -q PORT <<<"$boot"; then
+            echo "::error::startup failure did not name PORT: $boot"
+            exit 1
+          fi
+
+          docker run -d --name verify -e PORT=8080 -p 8080:8080 "$IMAGE"
+          curl -sSf --retry 20 --retry-all-errors --retry-delay 1 \
+            http://127.0.0.1:8080/healthz
+          if docker logs verify | grep -q '"version":"dev"'; then
+            echo "::error::-X main.version did not reach the binary"
+            exit 1
+          fi
+          docker rm -f verify
